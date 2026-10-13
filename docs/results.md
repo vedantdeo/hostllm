@@ -41,3 +41,44 @@ offered, and a first turn of ~30–50 tokens. Token rates count no stop token fo
 
 **Next:** v2, static batching per adapter, to show how much of the 27× is batching alone; and a
 profile of hostllm's ~150 ms per token.
+
+## 2026-10-13: hostllm v2, batching
+
+**Setup.** As above, with the `Batching` scheduler: a 10 ms window, up to 16 a batch, each row on its
+own adapter through PEFT's `adapter_names`. The first attempt finished only the headline levels: **Modal
+preempted the GPU container** after 10 minutes (14 of the figure level's 32 requests answered, then
+it vanished without a log line; GPU functions cannot be made non-preemptible), and the bench waited out
+the 1,200 s it gave every request on the one the preemption dropped. The bench now gives the cold
+request 900 s and every later one 300 s, so a dropped request is an error and the run goes on. The
+rerun below finished with no errors. Any client of a preemptible endpoint, aigent's included, needs a
+timeout sized to warm latency and a retry. Both v2 runs: ~$0.40.
+
+| tok/s (p50) | v1 | v2 | vLLM | v2 ÷ v1 |
+|---|---|---|---|---|
+| headlines, c=1 | 6.7 (5.1 s) | 5.2 (6.7 s) | 15.6 (2.3 s) | 0.8× |
+| headlines, c=4 | 7.9 (17.7 s) | 11.0 (12.6 s) | 62.6 (2.2 s) | 1.4× |
+| headlines, c=16 | 7.8 (70.3 s) | 29.9 (17.7 s) | 210.0 (2.5 s) | 3.8× |
+| figures, c=1 | 6.0 (5.8 s) | 4.9 (7.2 s) | 15.4 (2.3 s) | 0.8× |
+| figures, c=4 | 7.3 (19.1 s) | 8.5 (16.1 s) | 60.0 (2.3 s) | 1.2× |
+| figures, c=16 | 7.0 (77.8 s) | 15.1 (32.9 s) | 176.8 (2.6 s) | 2.2× |
+| cold start | 33.5 s | 109.0 s | 349.4 s | |
+
+**What it showed.**
+
+- **Static batching is worth 2–4× at 16 in flight**: 3.8× on headlines, 2.2× on figures, with p50
+  falling from 70 s to 18 s and from 78 s to 33 s. That is the share of vLLM's lead batching alone
+  buys; vLLM is still 7× ahead on headlines and 12× on figures.
+- **Figures gain less than headlines.** Their prompts are ~3× longer, so a padded batch spends more on
+  prefill, and a static batch runs until its longest answer ends while finished rows idle — the waste
+  continuous batching removes by refilling a slot the moment a row finishes.
+- **One at a time, v2 is ~20% slower than v1** (6.7 s against 5.1 s). Unmeasured, but the likely cause
+  is PEFT's per-row `adapter_names` path, which splits each layer's LoRA by adapter on every step even
+  for a batch of one. If a profile confirms it, a batch of one should take the v1 path.
+- **Cold starts vary:** 109 s here against v1's 34 s on the same image and cached weights. Nothing in
+  hostllm changed what loads at start, so the spread is likely Modal's (which machine, what is cached
+  on it); cold-start numbers need several samples before they are compared.
+- **Run to run:** the two v2 runs' headline levels differ by up to ~25% (24.0 against 29.9 tok/s at 16
+  in flight); a gap smaller than that is not a finding.
+
+**Next:** log batch sizes; send a batch of one down the single-request path; profile the ~150 ms per
+token; then the configure rung (JarvisLabs Serverless) and the buy rung (per-token LoRA hosting).

@@ -1,0 +1,78 @@
+{
+  "url": "vedantdeo1--hostllm-ours",
+  "cold_seconds": 108.98475458403118,
+  "levels": [
+    {
+      "workload": "headlines",
+      "concurrency": 1,
+      "requests": 32,
+      "errors": 0,
+      "p50": 6.72410575003596,
+      "p95": 7.230649915989488,
+      "requests_per_second": 0.1492880965892678,
+      "tokens_per_second": 5.2250833806243735,
+      "gpu_seconds_per_request": 6.698457699218125,
+      "usd_per_1k": 1.4885461553818056
+    },
+    {
+      "workload": "headlines",
+      "concurrency": 4,
+      "requests": 32,
+      "errors": 0,
+      "p50": 12.576666457985993,
+      "p95": 13.696609542006627,
+      "requests_per_second": 0.31425953692219827,
+      "tokens_per_second": 10.99908379227694,
+      "gpu_seconds_per_request": 3.182083222656729,
+      "usd_per_1k": 0.7071296050348287
+    },
+    {
+      "workload": "headlines",
+      "concurrency": 16,
+      "requests": 32,
+      "errors": 0,
+      "p50": 17.728206750005484,
+      "p95": 19.70827391697094,
+      "requests_per_second": 0.8551360332680438,
+      "tokens_per_second": 29.929761164381535,
+      "gpu_seconds_per_request": 1.1694045872191055,
+      "usd_per_1k": 0.2598676860486901
+    },
+    {
+      "workload": "figures",
+      "concurrency": 1,
+      "requests": 32,
+      "errors": 0,
+      "p50": 7.1639917910215445,
+      "p95": 9.231851166987326,
+      "requests_per_second": 0.13917805306606199,
+      "tokens_per_second": 4.923423627211943,
+      "gpu_seconds_per_request": 7.1850408736881946,
+      "usd_per_1k": 1.5966757497084876
+    },
+    {
+      "workload": "figures",
+      "concurrency": 4,
+      "requests": 32,
+      "errors": 0,
+      "p50": 16.115866917010862,
+      "p95": 22.67960554198362,
+      "requests_per_second": 0.2437853997350682,
+      "tokens_per_second": 8.47916093453534,
+      "gpu_seconds_per_request": 4.1019683750000695,
+      "usd_per_1k": 0.9115485277777933
+    },
+    {
+      "workload": "figures",
+      "concurrency": 16,
+      "requests": 32,
+      "errors": 0,
+      "p50": 32.869577041012235,
+      "p95": 41.972776583977975,
+      "requests_per_second": 0.42762717527154115,
+      "tokens_per_second": 15.073857928321827,
+      "gpu_seconds_per_request": 2.3384856197808404,
+      "usd_per_1k": 0.519663471062409
+    }
+  ]
+}

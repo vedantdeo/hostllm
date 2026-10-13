@@ -15,6 +15,7 @@ from hostllm import config
 from hostllm.bench import (
     Sample,
     estimate_usd,
+    http_send,
     load_workload,
     main,
     output_tokens,
@@ -225,3 +226,56 @@ def test_main_with_dry_run_sends_nothing(
 
     printed = capsys.readouterr().out
     assert "97 requests" in printed and "$" in printed, printed
+
+
+@pytest.fixture
+def slow_url() -> Iterator[str]:
+    """A server whose engine takes a second per request."""
+
+    def engine(req: ChatRequest) -> Completion:
+        time.sleep(1.0)
+        return Completion("{}", [], 10, 4, "stop")
+
+    scheduler = Sequential(engine)
+    server = make_server(scheduler, ["base"], None, "127.0.0.1", 0)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}"
+    server.shutdown()
+    scheduler.close()
+
+
+def test_a_request_with_no_answer_in_time_is_an_error_and_the_level_goes_on(slow_url: str) -> None:
+    send = http_send(slow_url, {}, timeout=0.2)
+    body: dict[str, object] = {"model": "base", "messages": MESSAGES}
+
+    began = time.monotonic()
+    samples, _ = run_level(send, [body], concurrency=1, requests=2, counts_stop=False)
+
+    assert len(samples) == 2 and all(s.error and "timed out" in s.error for s in samples), samples
+    assert time.monotonic() - began < 1.5, "each lost request costs its timeout, not more"
+
+
+def test_a_request_answered_in_time_is_not_cut_off(slow_url: str) -> None:
+    send = http_send(slow_url, {}, timeout=5)
+
+    usage, finish = send({"model": "base", "messages": MESSAGES})
+
+    assert usage["completion_tokens"] == 4 and finish == "stop"
+
+
+def test_main_gives_the_cold_request_the_long_timeout_and_the_rest_the_short(
+    slow_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "BENCH_COLD_TIMEOUT_SECONDS", 5.0)
+    monkeypatch.setattr(config, "BENCH_TIMEOUT_SECONDS", 0.2)
+    rows = write_rows(tmp_path / "h.jsonl", tools=False)
+    out = tmp_path / "bench.json"
+
+    main([
+        "--url", slow_url, "--workload", f"headlines={rows}:base",
+        "--levels", "1", "--requests", "1", "--out", str(out),
+    ])  # fmt: skip
+
+    result = json.loads(out.read_text())
+    assert result["cold_seconds"] >= 1.0, "the cold request waited for its answer"
+    assert result["levels"][0]["errors"] == 1, "a warm request past its timeout is an error"

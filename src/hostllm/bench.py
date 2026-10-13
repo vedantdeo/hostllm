@@ -139,8 +139,9 @@ def estimate_usd(
     return (cold_seconds + requests * seconds_per_request) * usd_per_hour / 3600
 
 
-def http_send(url: str, headers: dict[str, str]) -> Send:
-    """A Send posting to `url`'s chat completions, raising RuntimeError on an HTTP error."""
+def http_send(url: str, headers: dict[str, str], timeout: float) -> Send:
+    """A Send posting to `url`'s chat completions, raising RuntimeError on an HTTP error and
+    TimeoutError when no answer comes within `timeout` seconds."""
 
     def send(body: Body) -> tuple[dict[str, object], str]:
         request = urllib.request.Request(
@@ -149,7 +150,7 @@ def http_send(url: str, headers: dict[str, str]) -> Send:
             headers={"Content-Type": "application/json", **headers},
         )
         try:
-            with urllib.request.urlopen(request, timeout=config.BENCH_TIMEOUT_SECONDS) as reply:
+            with urllib.request.urlopen(request, timeout=timeout) as reply:
                 out = cast(dict[str, object], json.loads(reply.read()))
         except urllib.error.HTTPError as refused:
             raise RuntimeError(f"status {refused.code}: {refused.read().decode()[:200]}") from None
@@ -225,9 +226,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.dry_run:
         print("nothing sent. re-run without --dry-run to send these requests.")
         return
-    send = http_send(args.url, _headers(args.api_key_file, args.modal_proxy))
+    headers = _headers(args.api_key_file, args.modal_proxy)
+    send = http_send(args.url, headers, config.BENCH_TIMEOUT_SECONDS)
+    first = http_send(args.url, headers, config.BENCH_COLD_TIMEOUT_SECONDS)
     try:
-        cold, _ = run_level(send, workloads[0].bodies[:1], 1, 1, args.counts_stop_token)
+        cold, _ = run_level(first, workloads[0].bodies[:1], 1, 1, args.counts_stop_token)
         if cold[0].error is not None:
             raise RuntimeError(f"the cold request failed: {cold[0].error}")
         results: list[Level] = []
