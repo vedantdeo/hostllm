@@ -293,6 +293,39 @@ def test_a_batch_of_one_is_a_plain_completion(adapted: PeftModel) -> None:
 
 
 @pytest.mark.parametrize(
+    ("rows", "per_row"),
+    [
+        pytest.param(1, False, id="one request decodes on the single-request path"),
+        pytest.param(2, True, id="two decode with an adapter per row"),
+    ],
+)
+def test_only_a_batch_of_several_takes_the_per_row_adapter_path(
+    adapted: PeftModel, rows: int, per_row: bool
+) -> None:
+    seen: list[bool] = []
+
+    def record(
+        module: torch.nn.Module, args: tuple[object, ...], kwargs: dict[str, object]
+    ) -> None:
+        seen.append("adapter_names" in kwargs)
+
+    handle = adapted.register_forward_pre_hook(record, with_kwargs=True)
+    batch_engine(adapted).complete_batch([ask(ADAPTERS[0], "a", 3)] * rows)
+    handle.remove()
+
+    assert seen and all(s is per_row for s in seen), seen
+
+
+def test_a_batch_of_one_samples_with_its_own_generator(adapted: PeftModel) -> None:
+    server = batch_engine(adapted)
+    hot = replace(ask(ADAPTERS[0], "a", 8), temperature=5.0)
+
+    batched = server.complete_batch([hot], [torch.Generator().manual_seed(1)])
+
+    assert batched == [server.complete(hot, generator=torch.Generator().manual_seed(1))]
+
+
+@pytest.mark.parametrize(
     ("pad", "eos", "expected"),
     [
         pytest.param(9, 1, 9, id="the tokenizer's own pad"),

@@ -7,11 +7,10 @@ authors = [
     { name = "vedantdeo", email = "vedantdeo1@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = [
-    "peft>=0.21.2",
-    "torch>=2.14",
-    "transformers>=5.17",
-]
+# None: config and pricing need only the standard library, so a consumer such as underhood can price
+# a served call without installing torch. What the engine needs is in the serve group, which every
+# `uv sync` here installs by default, and no consumer does.
+dependencies = []
 
 [project.scripts]
 hostllm-serve = "hostllm.server:main"
@@ -30,9 +29,14 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.6",
 ]
+serve = [
+    "peft>=0.21.2",
+    "torch>=2.14",
+    "transformers>=5.17",
+]
 
 [tool.uv]
-default-groups = ["deploy", "dev"]
+default-groups = ["deploy", "dev", "serve"]
 
 [tool.ruff]
 line-length = 100

@@ -219,10 +219,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     total = 1 + len(workloads) * len(levels) * args.requests
     usd = estimate_usd(
         total, config.BENCH_ASSUMED_SECONDS, config.BENCH_ASSUMED_COLD_SECONDS,
-        config.BENCH_GPU_USD_PER_HOUR,
+        config.DEPLOY_GPU_USD_PER_HOUR,
     )  # fmt: skip
     print(f"{total} requests ({len(workloads)} workloads x {len(levels)} levels x {args.requests},")
-    print(f"plus one cold); at most ${usd:.2f} of GPU at ${config.BENCH_GPU_USD_PER_HOUR}/h")
+    print(f"plus one cold); at most ${usd:.2f} of GPU at ${config.DEPLOY_GPU_USD_PER_HOUR}/h")
     if args.dry_run:
         print("nothing sent. re-run without --dry-run to send these requests.")
         return
@@ -240,7 +240,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                     send, workload.bodies, concurrency, args.requests, args.counts_stop_token
                 )
                 level = summarise(
-                    workload.name, concurrency, samples, wall, config.BENCH_GPU_USD_PER_HOUR
+                    workload.name, concurrency, samples, wall, config.DEPLOY_GPU_USD_PER_HOUR
                 )
                 results.append(level)
                 print(

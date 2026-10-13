@@ -33,10 +33,30 @@ has the most documentation. Only a container platform can run our own server.
    Each row's `position_ids` count from its first real token; no test can tell them from the shifted
    positions HF would assume, because Qwen3's RoPE scores depend only on relative position, so they
    are kept for numerical closeness, untested. A finished row's input and mask are never read.
+   A batch of one takes v1's single-request path (2026-10-13): the first v2 bench ran ~20% slower
+   than v1 one at a time, and the per-row path is the only difference. The scheduler logs each
+   batch's size, longest answer and seconds, so a bench run shows what batches a level really formed.
 3. Continuous batching is out of scope (a Week 7 stretch at most); vLLM is the reference for it.
 
 Each version is benchmarked, so the gap to vLLM is split into what batching alone is worth and what
 remains.
+
+## What a served token costs
+
+*Decided 2026-10-13, Vedant's calls: the price lives here, underhood imports it, and it is the
+one-at-a-time rate.*
+
+`hostllm.pricing.SERVED` is the L4's $0.80 an hour over the engine's time for one request alone, from
+the step profile: 169.6 ms to prefill 574 tokens and 117.3 ms a step on one adapter, so **$0.066 per
+million prompt tokens and $26.07 per million answer tokens**. One at a time is how a single agent
+loop calls the endpoint, and it is the dearest rate: at 16 in flight a headline call cost a quarter
+as much. It is engine time only. The bench's wall-clock figure, which adds HTTP and Modal's proxy, is
+~15% higher ($1.13 against $0.98 per thousand headline calls), and neither counts cold starts or the
+idle minutes before the endpoint scales down.
+
+So that underhood, and aigent through it, can import the price without torch, the package's
+`dependencies` are empty and the engine's libraries are the `serve` group, installed by default
+here. Re-measure and edit the three `PRICE_` settings when the engine or the GPU changes.
 
 ## What is measured
 
