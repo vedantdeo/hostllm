@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 from dataclasses import asdict
 
 import modal
 
 from hostllm import config
+from hostllm.deploy.launch import start
 from hostllm.deploy.spec import SPEC_JSON_ENV, spec_from_env
 
 SPEC = spec_from_env(os.environ)
@@ -52,11 +52,11 @@ def image(*packages: str) -> modal.Image:
     requires_proxy_auth=config.DEPLOY_PROXY_AUTH,
 )
 def ours() -> None:
-    subprocess.Popen(SPEC.ours_command(config.DEPLOY_PORT))
+    start(SPEC.ours_command(config.DEPLOY_PORT), config.DEPLOY_PORT, config.DEPLOY_STARTUP_SECONDS)
 
 
 @app.function(
-    image=image(config.DEPLOY_VLLM_PACKAGE),
+    image=image(*config.DEPLOY_VLLM_PACKAGES),
     gpu=config.DEPLOY_GPU,
     volumes={"/root/.cache/huggingface": cache},
     secrets=[secret],
@@ -72,4 +72,10 @@ def ours() -> None:
 )
 def vllm() -> None:
     key = os.environ.get(config.SERVE_API_KEY_ENV, "")
-    subprocess.Popen(SPEC.vllm_command(config.DEPLOY_PORT), env={**os.environ, "VLLM_API_KEY": key})
+    env = {**os.environ, "VLLM_API_KEY": key}
+    start(
+        SPEC.vllm_command(config.DEPLOY_PORT),
+        config.DEPLOY_PORT,
+        config.DEPLOY_STARTUP_SECONDS,
+        env=env,
+    )

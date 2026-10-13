@@ -21,7 +21,7 @@ DEPLOY_MAX_MODEL_LEN = 8192  # bounds vLLM's KV cache to what one request here n
 DEPLOY_PORT = 8000
 DEPLOY_CONCURRENT_INPUTS = 32  # requests one container accepts at once; the scheduler queues them
 DEPLOY_PACKAGES = ("peft==0.21.2", "torch==2.14.1", "transformers==5.19.0")  # as uv.lock has them
-DEPLOY_VLLM_PACKAGE = "vllm==0.11.0"
+DEPLOY_VLLM_PACKAGES = ("transformers==4.57.1", "vllm==0.11.0")  # vLLM 0.11 predates transformers 5
 DEPLOY_CACHE_VOLUME = "hostllm-hf-cache"
 DEPLOY_SECRET = "hostllm"  # holds HF_TOKEN and HOSTLLM_API_KEY
 DEPLOY_PROXY_AUTH = True  # Modal refuses callers without a proxy token before a GPU starts
