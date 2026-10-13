@@ -19,6 +19,17 @@ joint release.
 Paid steps — a Modal deploy, a bench run against a live endpoint — each need their own go-ahead,
 with the dry-run estimate first.
 
+## Jobs that finish live in underhood; servers that stay up live in hostllm
+
+**The rule (2026-10-13):** underhood runs work that ends — training, evals, censuses — and the
+compute for it (`underhood.gpu`: Kaggle kernels, the Hub, run pricing). hostllm runs servers that
+stay up: the engine, its deployments (Modal, JarvisLabs Serverless) and their benchmarks. underhood
+publishes adapters and names what to host; hostllm imports nothing from it.
+
+**Why:** a batch kernel that runs once and exits shares little with an endpoint that starts on
+demand, keeps weights warm and is measured under load. If hostllm later needs part of
+`underhood.gpu`, lift out that generic part then, shaped by a real second user.
+
 ## `main` only takes pull requests
 
 Public, like aigent and underhood, and `main` is guarded by the same ruleset, "main via PR": no
