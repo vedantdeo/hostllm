@@ -1,0 +1,28 @@
+# The mains CI: hostllm's main, then, once green, underhood's (which starts aigent's).
+name: mains
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: mains-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mains:
+    uses: ./.github/workflows/checks.yml
+
+  # UNDERHOOD_DISPATCH_TOKEN: fine-grained, underhood only, Actions read and write, so it starts runs only.
+  underhood:
+    name: start underhood's mains CI
+    needs: mains
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run underhood's main against this main
+        env:
+          GH_TOKEN: ${{ secrets.UNDERHOOD_DISPATCH_TOKEN }}
+        run: gh workflow run main.yml --repo vedantdeo/underhood --ref main

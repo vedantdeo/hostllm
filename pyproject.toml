@@ -1,0 +1,45 @@
+[project]
+name = "hostllm"
+version = "0.1.0"
+description = "A from-scratch, OpenAI-compatible server for a causal LM and its LoRA adapters, measured against vLLM."
+readme = "README.md"
+authors = [
+    { name = "vedantdeo", email = "vedantdeo1@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "peft>=0.21.2",
+    "torch>=2.14",
+    "transformers>=5.17",
+]
+
+[project.scripts]
+hostllm-serve = "hostllm.server:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
+    "ruff>=0.16.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "A"]
+
+[tool.pyright]
+exclude = [".venv"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

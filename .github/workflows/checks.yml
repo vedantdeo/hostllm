@@ -1,0 +1,43 @@
+# Lint, types and the spec: the mains CI (main.yml) calls it.
+name: checks
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: the commit to check, instead of the one that started the run
+        type: string
+        default: ""
+
+jobs:
+  quality:
+    name: lint · types · tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: vedantdeo/hostllm # a called workflow would otherwise check out its caller
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: ruff · lint
+        run: uv run ruff check --output-format=github .
+
+      - name: ruff · format
+        if: ${{ !cancelled() }}
+        run: uv run ruff format --check .
+
+      - name: pyright
+        if: ${{ !cancelled() }}
+        run: uv run pyright src tests
+
+      - name: pytest
+        if: ${{ !cancelled() }}
+        run: uv run pytest -q
