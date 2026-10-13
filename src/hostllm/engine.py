@@ -103,7 +103,10 @@ class Engine:
         self, requests: Sequence[ChatRequest], generators: Sequence[torch.Generator | None] = ()
     ) -> list[Completion]:
         """Answer every request in one batched decode: prompts left-padded, each row on its own
-        adapter (PEFT's per-row `adapter_names`) and sampling settings, and stopped on its own."""
+        adapter (PEFT's per-row `adapter_names`) and sampling settings, and stopped on its own. A
+        lone request takes `complete`'s path."""
+        if len(requests) == 1:
+            return [self.complete(requests[0], generators[0] if generators else None)]
         prompts = [self.render(r.messages, r.tools) for r in requests]
         width = max(map(len, prompts))
         ids = torch.tensor([[self.pad] * (width - len(p)) + p for p in prompts])
@@ -170,14 +173,7 @@ class Engine:
 
         with self.selected(request.model):
             tokens, finish = decode(self._step, prompt, request.max_tokens, self.stop, pick)
-        content, calls = split_reply(self.detokenize(tokens))
-        return Completion(
-            content=content,
-            tool_calls=calls,
-            prompt_tokens=len(prompt),
-            completion_tokens=len(tokens),
-            finish_reason="tool_calls" if calls else finish,
-        )
+        return self._completion(prompt, tokens, finish)
 
 
 def load(base_model: str, adapters: Mapping[str, str], base: str = "base") -> Engine:

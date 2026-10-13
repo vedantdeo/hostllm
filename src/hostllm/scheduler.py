@@ -1,8 +1,9 @@
 """Schedulers turn concurrent requests into work for the engine: v1, `Sequential`, serves one at a
-time in arrival order; v2, `Batching`, answers whatever is waiting in one batch."""
+time in arrival order; v2, `Batching`, answers whatever is waiting in one batch and logs it."""
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 import time
@@ -13,6 +14,7 @@ from typing import Protocol
 from hostllm.protocol import ChatRequest, Completion
 
 Complete = Callable[[ChatRequest], Completion]
+_log = logging.getLogger(__name__)
 
 
 class Scheduler(Protocol):
@@ -87,11 +89,18 @@ class Batching:
             if first is None:
                 return
             batch, closing = self._gather(first)
+            began = time.monotonic()
             try:
                 answers = self._complete([request for request, _ in batch])
             except Exception as failed:  # the batch's failure, not the worker's
+                _log.warning(
+                    "batch of %d failed: %s: %s", len(batch), type(failed).__name__, failed
+                )
                 for _, future in batch:
                     future.set_exception(failed)
                 continue
+            longest = max(answer.completion_tokens for answer in answers)
+            seconds = time.monotonic() - began
+            _log.info("batch of %d, longest answer %d tokens, %.2f s", len(batch), longest, seconds)
             for (_, future), answer in zip(batch, answers, strict=True):
                 future.set_result(answer)

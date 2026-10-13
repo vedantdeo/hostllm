@@ -547,11 +547,6 @@ wheels = [
 name = "hostllm"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
-    { name = "peft" },
-    { name = "torch" },
-    { name = "transformers" },
-]
 
 [package.dev-dependencies]
 deploy = [
@@ -562,13 +557,13 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+serve = [
+    { name = "peft" },
+    { name = "torch" },
+    { name = "transformers" },
+]
 
 [package.metadata]
-requires-dist = [
-    { name = "peft", specifier = ">=0.21.2" },
-    { name = "torch", specifier = ">=2.14" },
-    { name = "transformers", specifier = ">=5.17" },
-]
 
 [package.metadata.requires-dev]
 deploy = [{ name = "modal", specifier = ">=1.1" }]
@@ -576,6 +571,11 @@ dev = [
     { name = "pyright", specifier = ">=1.1.411" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.16.6" },
+]
+serve = [
+    { name = "peft", specifier = ">=0.21.2" },
+    { name = "torch", specifier = ">=2.14" },
+    { name = "transformers", specifier = ">=5.17" },
 ]
 
 [[package]]

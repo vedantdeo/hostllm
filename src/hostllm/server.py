@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import time
 import uuid
@@ -112,6 +113,7 @@ def main() -> None:
         "--scheduler", choices=["sequential", "batching"], default=config.SERVE_SCHEDULER
     )
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(message)s")  # the scheduler's batch lines
     engine = load(args.base_model, parse_adapters(args.adapter), base=BASE)
     scheduler: Scheduler = (
         Batching(engine.complete_batch, config.SERVE_MAX_BATCH, config.SERVE_BATCH_WINDOW_SECONDS)

@@ -1,7 +1,10 @@
-"""Specification for scheduler.py: v1 serves requests one at a time, in the order they arrive."""
+"""Specification for scheduler.py: v1 serves requests one at a time, in the order they arrive; v2
+answers whatever is waiting in one batch, and logs each batch."""
 
 from __future__ import annotations
 
+import logging
+import re
 import threading
 import time
 
@@ -99,7 +102,30 @@ def test_a_batch_never_exceeds_its_cap() -> None:
     assert max(len(b) for b in engine.batches) == 3 and sum(map(len, engine.batches)) == 7
 
 
-def test_an_engine_error_fails_its_batch_and_the_next_batch_still_runs() -> None:
+def test_each_answered_batch_is_logged_with_its_size_and_longest_answer(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    batches: list[tuple[int, int]] = []
+
+    def engine(requests: list[ChatRequest]) -> list[Completion]:
+        answers = [Completion(r.model, [], 1, int(r.model[1:]) + 1, "stop") for r in requests]
+        batches.append((len(requests), max(a.completion_tokens for a in answers)))
+        return answers
+
+    with caplog.at_level(logging.INFO, logger="hostllm.scheduler"):
+        scheduler = Batching(engine, max_batch=3, window=0.05)
+        for future in [scheduler.submit(request(n)) for n in range(7)]:
+            future.result(timeout=5)
+        scheduler.close()
+
+    line = re.compile(r"batch of (\d+), longest answer (\d+) tokens, \d+\.\d\d s$")
+    logged = [(int(m[1]), int(m[2])) for r in caplog.records if (m := line.match(r.getMessage()))]
+    assert logged == batches and len(batches) >= 3, caplog.text
+
+
+def test_an_engine_error_fails_its_batch_and_the_next_batch_still_runs(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     calls = 0
 
     def engine(requests: list[ChatRequest]) -> list[Completion]:
@@ -116,6 +142,7 @@ def test_an_engine_error_fails_its_batch_and_the_next_batch_still_runs() -> None
         broken.result(timeout=5)
     assert fine.result(timeout=5).content == "m1"
     scheduler.close()
+    assert "batch of 1 failed: RuntimeError: CUDA out of memory" in caplog.messages
 
 
 @pytest.mark.parametrize(

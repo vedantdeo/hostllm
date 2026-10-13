@@ -19,6 +19,7 @@ SERVE_BATCH_WINDOW_SECONDS = 0.01
 
 # Deployments (deploy/): one L4 per server, stopped after five idle minutes, never more than one
 DEPLOY_GPU = "L4"
+DEPLOY_GPU_USD_PER_HOUR = 0.80  # Modal's L4
 DEPLOY_SCALEDOWN_SECONDS = 300
 DEPLOY_MAX_CONTAINERS = 1  # so a benchmark measures the scheduler, not the autoscaler
 DEPLOY_STARTUP_SECONDS = 900  # the first start downloads the base into the cache volume
@@ -31,14 +32,24 @@ DEPLOY_CACHE_VOLUME = "hostllm-hf-cache"
 DEPLOY_SECRET = "hostllm"  # holds HF_TOKEN and HOSTLLM_API_KEY
 DEPLOY_PROXY_AUTH = True  # Modal refuses callers without a proxy token before a GPU starts
 
-# The bench (bench.py): levels, requests per level, and the prices its dry run assumes
+# The bench (bench.py): levels, requests per level, and what its dry run assumes
 BENCH_LEVELS = (1, 4, 16)
 BENCH_REQUESTS = 32
 BENCH_MAX_TOKENS = 512
 BENCH_COLD_TIMEOUT_SECONDS = 900  # the first request waits out a cold start; vLLM's took 349 s
 BENCH_TIMEOUT_SECONDS = 300  # any later one: a request a preempted container drops never returns
-BENCH_GPU_USD_PER_HOUR = 0.80  # Modal's L4
 BENCH_ASSUMED_SECONDS = 9.0  # per request, unbatched: ours took 8.6 s on a warm figure turn
 BENCH_ASSUMED_COLD_SECONDS = 180.0  # vLLM's cold start took 183 s
 BENCH_STOP_POLLS = 12  # checks, BENCH_STOP_POLL_SECONDS apart, that stopped containers are gone
 BENCH_STOP_POLL_SECONDS = 5.0
+
+# The step profile (profile.py, deploy/modal_profile.py)
+PROFILE_BATCHES = (1, 4, 16)
+PROFILE_STEPS = 32
+PROFILE_PROMPT_TOKENS = 574  # a headline prompt's length
+PROFILE_TIMEOUT_SECONDS = 600
+
+# A served token's price (pricing.py): engine time one request at a time, from the step profile
+PRICE_PREFILL_MS = 169.6  # one adapter, batch 1, PRICE_PREFILL_TOKENS fed
+PRICE_PREFILL_TOKENS = 574
+PRICE_STEP_MS = 117.3  # one adapter, batch 1

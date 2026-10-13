@@ -11,6 +11,10 @@ hostllm serves any causal LM with LoRA adapters behind an OpenAI-compatible API.
 nothing from underhood or aigent**: underhood publishes adapters and tells hostllm what to host;
 aigent calls the endpoint over HTTP. Anything it needs, such as a sampler, it writes for itself.
 
+The one thing underhood imports from here is a served token's price (`hostllm.pricing`). That is why
+`dependencies` in `pyproject.toml` is empty and torch, peft and transformers sit in the `serve`
+group: `hostllm`, `hostllm.config` and `hostllm.pricing` must import with the standard library alone.
+
 The chain is aigent → underhood → hostllm: each depends on the next and never the other way. In CI
 a green hostllm `main` starts underhood's mains CI, which starts aigent's, and hostllm joins the
 joint release.

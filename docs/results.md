@@ -82,3 +82,66 @@ timeout sized to warm latency and a retry. Both v2 runs: ~$0.40.
 
 **Next:** log batch sizes; send a batch of one down the single-request path; profile the ~150 ms per
 token; then the configure rung (JarvisLabs Serverless) and the buy rung (per-token LoRA hosting).
+
+## 2026-10-13: where a decode step's time goes
+
+**Setup.** `hostllm.deploy.modal_profile` on one L4: the engine loaded as the server loads it, then a
+574-token prompt (a headline's length) prefilled and 32 greedy steps timed, on three paths — the bare
+base, `headline-flavour` set as the one active adapter, and the same adapter named per row through
+`adapter_names` — at batch 1, 4 and 16. One run, ~$0.05. Raw table in
+`docs/bench/2026-10-13-profile.txt`.
+
+| ms per step (prefill) | batch 1 | batch 4 | batch 16 |
+|---|---|---|---|
+| base | 66 (120) | 64 (427) | 63 (1,981) |
+| one adapter | 117 (170) | 116 (752) | 118 (3,466) |
+| an adapter per row | 226 (308) | 221 (838) | 225 (3,752) |
+
+**What it showed.**
+
+- **A step costs the same at 1 row as at 16.** On every path the step time is flat across batch
+  sizes, so a step is bound by per-layer overhead, not by arithmetic: sixteen rows are nearly free.
+  Prefill is the opposite — it grows in step with the tokens fed, 2–4 s for sixteen headline prompts.
+- **Unmerged LoRA nearly doubles a step** (66 → 117 ms): PEFT runs two extra small matmuls on each
+  of seven projections in each layer. The bare base's 66 ms is vLLM's one-at-a-time rate (15 tok/s).
+- **The per-row path doubles it again** (117 → 226 ms), at any batch size. That is the cost v2 paid
+  on every step, and the reason a batch of one now takes the single-request path.
+- **So two changes are known to be worth ~2× each, and are not made yet:** a batch whose rows all
+  name one adapter can set it once instead of naming it per row (226 → 117 ms), and merged adapter
+  weights would decode at the base's speed (117 → 66 ms) at the price of a copy of the base each.
+
+## 2026-10-13: v2 again, a batch of one on the single-request path, batches logged
+
+**Setup.** The v2 bench as before, after two changes: a lone request takes v1's path, and the
+scheduler logs each batch's size, longest answer and seconds. One run, no errors, ~14 minutes of L4
+(~$0.19). Raw numbers in `docs/bench/2026-10-13-ours-v2-single-path.json`; batch sizes read from
+Modal's logs (`modal app logs hostllm --search "batch of"`).
+
+| tok/s (p50) | v1 | v2, first run | v2, this run | batches formed |
+|---|---|---|---|---|
+| headlines, c=1 | 6.7 (5.1 s) | 5.2 (6.7 s) | 6.9 (5.1 s) | 32 of 1 |
+| headlines, c=4 | 7.9 (17.7 s) | 11.0 (12.6 s) | 10.4 (13.3 s) | 8 of 1, 8 of 3 |
+| headlines, c=16 | 7.8 (70.3 s) | 29.9 (17.7 s) | 28.9 (18.3 s) | 2 of 1, 2 of 15 |
+| figures, c=1 | 6.0 (5.8 s) | 4.9 (7.2 s) | 6.2 (5.5 s) | 32 of 1 |
+| figures, c=4 | 7.3 (19.1 s) | 8.5 (16.1 s) | 7.9 (17.2 s) | 8 of 1, 8 of 3 |
+| figures, c=16 | 7.0 (77.8 s) | 15.1 (32.9 s) | 14.2 (33.9 s) | 2 of 1, 2 of 15 |
+| cold start | 33.5 s | 109.0 s | 90.4 s | |
+
+**What it showed.**
+
+- **One at a time, v2 now matches v1** (5.1 s, 6.9 tok/s on headlines; 5.5 s on figures): the ~20%
+  it lost was the per-row adapter path, as the profile above measured.
+- **Under load nothing moved**, within the ~25% run-to-run spread, as expected: those batches still
+  take the per-row path.
+- **No level ever formed a full batch.** Every loaded level alternates a batch of one with a batch
+  of the rest (1 and 3, 1 and 15). When a batch ends, the one request left waiting is picked up and
+  the 10 ms window closes before the just-answered clients' next requests arrive, so it decodes
+  alone while they queue behind it. At 16 in flight about a quarter of the time (4.3 s of each ~19 s
+  cycle) serves one request. A window longer than a client's round trip would end the convoy.
+- **A batch of 15 headlines takes ~15 s**: ~3.7 s of prefill, then ~40 steps at ~270 ms, in line
+  with the profile's 225 ms per-row step.
+
+**Parked (2026-10-13, Vedant's call):** no further inference optimisation until the capstone is
+built on what is served now. Where to start afterwards, cheapest first: a longer batch window (a
+setting); setting the adapter once for a batch whose rows share it (~2× a step); merged adapter
+weights (~2× again).
