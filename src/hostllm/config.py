@@ -25,3 +25,14 @@ DEPLOY_VLLM_PACKAGES = ("transformers==4.57.1", "vllm==0.11.0")  # vLLM 0.11 pre
 DEPLOY_CACHE_VOLUME = "hostllm-hf-cache"
 DEPLOY_SECRET = "hostllm"  # holds HF_TOKEN and HOSTLLM_API_KEY
 DEPLOY_PROXY_AUTH = True  # Modal refuses callers without a proxy token before a GPU starts
+
+# The bench (bench.py): levels, requests per level, and the prices its dry run assumes
+BENCH_LEVELS = (1, 4, 16)
+BENCH_REQUESTS = 32
+BENCH_MAX_TOKENS = 512
+BENCH_TIMEOUT_SECONDS = 1200  # one request, cold start included
+BENCH_GPU_USD_PER_HOUR = 0.80  # Modal's L4
+BENCH_ASSUMED_SECONDS = 9.0  # per request, unbatched: ours took 8.6 s on a warm figure turn
+BENCH_ASSUMED_COLD_SECONDS = 180.0  # vLLM's cold start took 183 s
+BENCH_STOP_POLLS = 12  # checks, BENCH_STOP_POLL_SECONDS apart, that stopped containers are gone
+BENCH_STOP_POLL_SECONDS = 5.0
