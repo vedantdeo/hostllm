@@ -129,23 +129,43 @@ def load(base_model: str, adapters: Mapping[str, str], base: str = "base") -> En
         base_model, dtype=dtype if cuda else torch.float32, device_map="cuda" if cuda else "cpu"
     )
     peft = attach(model, adapters)
-    tokenizer = AutoTokenizer.from_pretrained(base_model)
+    render, detokenize, stop = text_io(cast(Tokenizer, AutoTokenizer.from_pretrained(base_model)))
+    return Engine(peft, base, render, detokenize, stop)
+
+
+class Tokenizer(Protocol):
+    """The part of a Hugging Face tokenizer the engine uses."""
+
+    eos_token_id: int | None
+
+    def apply_chat_template(self, conversation: list[Message], **kwargs: object) -> object: ...
+
+    def __call__(self, text: str, *, add_special_tokens: bool) -> Mapping[str, list[int]]: ...
+
+    def decode(self, ids: list[int], *, skip_special_tokens: bool) -> str: ...
+
+    def convert_tokens_to_ids(self, token: str) -> int | None: ...
+
+
+def text_io(tokenizer: Tokenizer) -> tuple[Render, Detokenize, frozenset[int]]:
+    """Render, detokenize and the stop ids for `tokenizer`: the chat template rendered to text with
+    thinking off, then tokenized without special tokens, as the adapters were trained."""
 
     def render(messages: Sequence[Message], tools: Sequence[Message]) -> list[int]:
-        ids = tokenizer.apply_chat_template(
+        text = tokenizer.apply_chat_template(
             list(messages),
             tools=list(tools) or None,
             add_generation_prompt=True,
             enable_thinking=False,
-            tokenize=True,
+            tokenize=False,
         )
-        return list(cast(list[int], ids))
+        return list(tokenizer(str(text), add_special_tokens=False)["input_ids"])
 
     def detokenize(tokens: Sequence[int]) -> str:
         return str(tokenizer.decode(list(tokens), skip_special_tokens=False))
 
-    stop = {tid for tid in (tokenizer.convert_tokens_to_ids("<|im_end|>"), tokenizer.eos_token_id)}
-    return Engine(peft, base, render, detokenize, frozenset(int(t) for t in stop if t is not None))
+    stop = {tokenizer.convert_tokens_to_ids("<|im_end|>"), tokenizer.eos_token_id}
+    return render, detokenize, frozenset(int(t) for t in stop if t is not None)
 
 
 def attach(model: object, adapters: Mapping[str, str]) -> PeftModel:

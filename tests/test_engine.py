@@ -12,7 +12,7 @@ import torch
 from peft import PeftModel
 from torch import Tensor
 
-from hostllm.engine import Engine, attach, decode, split_reply
+from hostllm.engine import Engine, attach, decode, split_reply, text_io
 from hostllm.protocol import ChatRequest
 from tests.conftest import ADAPTERS, VOCAB, tiny_qwen
 
@@ -183,3 +183,51 @@ def test_attach_loads_each_saved_adapter_under_its_name(adapted: PeftModel, tmp_
 def test_attach_refuses_no_adapters() -> None:
     with pytest.raises(ValueError, match="no adapters"):
         attach(tiny_qwen(), {})
+
+
+class CharTokenizer:
+    """One id per character; the chat template is a visible stand-in that records its arguments."""
+
+    eos_token_id: int | None = 1
+
+    def __init__(self) -> None:
+        self.template_calls: list[dict[str, object]] = []
+
+    def apply_chat_template(
+        self, conversation: list[dict[str, object]], **kwargs: object
+    ) -> object:
+        self.template_calls.append(kwargs)
+        return "".join(str(m["content"]) for m in conversation) + ">"
+
+    def __call__(self, text: str, *, add_special_tokens: bool) -> dict[str, list[int]]:
+        assert add_special_tokens is False
+        return {"input_ids": [ord(c) for c in text], "attention_mask": [1] * len(text)}
+
+    def decode(self, ids: list[int], *, skip_special_tokens: bool) -> str:
+        return "".join(chr(i) for i in ids)
+
+    def convert_tokens_to_ids(self, token: str) -> int | None:
+        return 2 if token == "<|im_end|>" else None
+
+
+def test_text_io_renders_the_template_as_text_then_tokenizes_it() -> None:
+    tokenizer = CharTokenizer()
+    render, detokenize, stop = text_io(tokenizer)
+
+    ids = render([{"role": "user", "content": "hi"}], [])
+
+    assert ids == [ord("h"), ord("i"), ord(">")], "token ids, not the dict's keys"
+    assert tokenizer.template_calls == [
+        {"tools": None, "add_generation_prompt": True, "enable_thinking": False, "tokenize": False}
+    ]
+    assert detokenize(ids) == "hi>" and stop == frozenset({1, 2})
+
+
+def test_text_io_passes_tools_through() -> None:
+    tokenizer = CharTokenizer()
+    render, _, _ = text_io(tokenizer)
+    tool = {"type": "function", "function": {"name": "calculate"}}
+
+    render([{"role": "user", "content": "x"}], [tool])
+
+    assert tokenizer.template_calls[0]["tools"] == [tool]

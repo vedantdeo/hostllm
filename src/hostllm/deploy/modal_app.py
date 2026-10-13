@@ -46,7 +46,11 @@ def image(*packages: str) -> modal.Image:
     max_containers=config.DEPLOY_MAX_CONTAINERS,
 )
 @modal.concurrent(max_inputs=config.DEPLOY_CONCURRENT_INPUTS)
-@modal.web_server(config.DEPLOY_PORT, startup_timeout=config.DEPLOY_STARTUP_SECONDS)
+@modal.web_server(
+    config.DEPLOY_PORT,
+    startup_timeout=config.DEPLOY_STARTUP_SECONDS,
+    requires_proxy_auth=config.DEPLOY_PROXY_AUTH,
+)
 def ours() -> None:
     subprocess.Popen(SPEC.ours_command(config.DEPLOY_PORT))
 
@@ -61,7 +65,11 @@ def ours() -> None:
     max_containers=config.DEPLOY_MAX_CONTAINERS,
 )
 @modal.concurrent(max_inputs=config.DEPLOY_CONCURRENT_INPUTS)
-@modal.web_server(config.DEPLOY_PORT, startup_timeout=config.DEPLOY_STARTUP_SECONDS)
+@modal.web_server(
+    config.DEPLOY_PORT,
+    startup_timeout=config.DEPLOY_STARTUP_SECONDS,
+    requires_proxy_auth=config.DEPLOY_PROXY_AUTH,
+)
 def vllm() -> None:
     key = os.environ.get(config.SERVE_API_KEY_ENV, "")
     subprocess.Popen(SPEC.vllm_command(config.DEPLOY_PORT), env={**os.environ, "VLLM_API_KEY": key})

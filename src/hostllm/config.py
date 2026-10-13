@@ -24,3 +24,4 @@ DEPLOY_PACKAGES = ("peft==0.21.2", "torch==2.14.1", "transformers==5.19.0")  # a
 DEPLOY_VLLM_PACKAGE = "vllm==0.11.0"
 DEPLOY_CACHE_VOLUME = "hostllm-hf-cache"
 DEPLOY_SECRET = "hostllm"  # holds HF_TOKEN and HOSTLLM_API_KEY
+DEPLOY_PROXY_AUTH = True  # Modal refuses callers without a proxy token before a GPU starts

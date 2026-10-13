@@ -8,7 +8,7 @@ each choice was.*
 One base, Qwen3-4B, with two LoRA adapters trained in underhood: the **headline reader**, served as
 `headline-flavour` (a market headline → one structured record), and the **report analyst**, served as
 `report-analyst` (filing passages → figures, calling `calculate`). Each is a private Hub repo of the
-same name under `vedantdeo/`. aigent's capstone routes narrow jobs to them and measures what routing saves.
+same name under `vistack/` on the Hub. aigent's capstone routes narrow jobs to them and measures what routing saves.
 
 ## Three rungs: build, configure, buy
 
