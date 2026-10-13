@@ -12,6 +12,11 @@ SERVE_HOST = "0.0.0.0"
 SERVE_PORT = 8000
 SERVE_API_KEY_ENV = "HOSTLLM_API_KEY"  # the bearer token clients send; unset means no auth
 
+# The scheduler: v1 "sequential", or v2 "batching" with its cap and the wait for a batch to fill
+SERVE_SCHEDULER = "batching"
+SERVE_MAX_BATCH = 16
+SERVE_BATCH_WINDOW_SECONDS = 0.01
+
 # Deployments (deploy/): one L4 per server, stopped after five idle minutes, never more than one
 DEPLOY_GPU = "L4"
 DEPLOY_SCALEDOWN_SECONDS = 300

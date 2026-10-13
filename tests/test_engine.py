@@ -12,7 +12,7 @@ import torch
 from peft import PeftModel
 from torch import Tensor
 
-from hostllm.engine import Engine, attach, decode, split_reply, text_io
+from hostllm.engine import Engine, attach, decode, pad_id, split_reply, text_io
 from hostllm.protocol import ChatRequest
 from tests.conftest import ADAPTERS, VOCAB, tiny_qwen
 
@@ -189,6 +189,7 @@ class CharTokenizer:
     """One id per character; the chat template is a visible stand-in that records its arguments."""
 
     eos_token_id: int | None = 1
+    pad_token_id: int | None = None
 
     def __init__(self) -> None:
         self.template_calls: list[dict[str, object]] = []
@@ -231,3 +232,83 @@ def test_text_io_passes_tools_through() -> None:
     render([{"role": "user", "content": "x"}], [tool])
 
     assert tokenizer.template_calls[0]["tools"] == [tool]
+
+
+def batch_engine(model: PeftModel) -> Engine:
+    """Prompts of different lengths, so a batch needs padding."""
+    return Engine(
+        model=model,
+        base="base",
+        render=lambda messages, tools: [3 + len(str(m["content"])) % 7 for m in messages] * 2,
+        detokenize=lambda tokens: " ".join(map(str, tokens)),
+        stop=frozenset({VOCAB}),
+    )
+
+
+def ask(model: str, content: str, max_tokens: int) -> ChatRequest:
+    return ChatRequest(
+        model,
+        [{"role": "user", "content": content}] * (1 + len(content) % 3),
+        [],
+        max_tokens,
+        0.0,
+        None,
+    )
+
+
+def test_a_batch_answers_each_request_as_it_would_be_answered_alone(adapted: PeftModel) -> None:
+    server = batch_engine(adapted)
+    requests = [
+        ask(ADAPTERS[0], "a", 5),
+        ask("base", "bbbb", 3),
+        ask(ADAPTERS[1], "cc", 6),
+        ask(ADAPTERS[0], "dddddd", 4),
+    ]
+
+    batched = server.complete_batch(requests)
+    alone = [server.complete(r) for r in requests]
+
+    assert len({len(server.render(r.messages, [])) for r in requests}) > 1, "lengths differ"
+    assert batched == alone
+
+
+def test_a_row_that_stops_early_does_not_hold_up_or_change_the_rest(adapted: PeftModel) -> None:
+    server = batch_engine(adapted)
+    probe = server.complete(ask(ADAPTERS[1], "cc", 6))
+    first = int(str(probe.content).split()[0])
+    stopping = Engine(server.model, "base", server.render, server.detokenize, frozenset({first}))
+    requests = [ask(ADAPTERS[1], "cc", 6), ask(ADAPTERS[0], "a", 5)]
+
+    batched = stopping.complete_batch(requests)
+
+    assert batched[0].finish_reason == "stop" and batched[0].completion_tokens == 0
+    assert batched == [stopping.complete(r) for r in requests]
+
+
+def test_a_batch_of_one_is_a_plain_completion(adapted: PeftModel) -> None:
+    server = batch_engine(adapted)
+    request = ask(ADAPTERS[0], "a", 4)
+
+    assert server.complete_batch([request]) == [server.complete(request)]
+
+
+@pytest.mark.parametrize(
+    ("pad", "eos", "expected"),
+    [
+        pytest.param(9, 1, 9, id="the tokenizer's own pad"),
+        pytest.param(None, 1, 1, id="no pad, so end of sequence"),
+    ],
+)
+def test_pad_id(pad: int | None, eos: int | None, expected: int) -> None:
+    tokenizer = CharTokenizer()
+    tokenizer.pad_token_id, tokenizer.eos_token_id = pad, eos
+
+    assert pad_id(tokenizer) == expected
+
+
+def test_pad_id_refuses_a_tokenizer_with_neither() -> None:
+    tokenizer = CharTokenizer()
+    tokenizer.pad_token_id = tokenizer.eos_token_id = None
+
+    with pytest.raises(ValueError, match="neither"):
+        pad_id(tokenizer)

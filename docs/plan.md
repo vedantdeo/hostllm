@@ -27,7 +27,12 @@ has the most documentation. Only a container platform can run our own server.
 ## hostllm's own iterations
 
 1. **v1, sequential:** one request at a time. The baseline.
-2. **v2, static batching:** waiting requests that share an adapter go through one padded generate.
+2. **v2, static batching:** whatever is waiting goes through one left-padded decode, each row on its
+   own adapter through PEFT's per-row `adapter_names` (decided 2026-10-13 over one adapter per batch,
+   which underuses the GPU on mixed traffic). Each row's output equals that request answered alone.
+   Each row's `position_ids` count from its first real token; no test can tell them from the shifted
+   positions HF would assume, because Qwen3's RoPE scores depend only on relative position, so they
+   are kept for numerical closeness, untested. A finished row's input and mask are never read.
 3. Continuous batching is out of scope (a Week 7 stretch at most); vLLM is the reference for it.
 
 Each version is benchmarked, so the gap to vLLM is split into what batching alone is worth and what

@@ -16,13 +16,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from hostllm import config
 from hostllm.protocol import completion_body, error_body, parse_request
-from hostllm.scheduler import Sequential
+from hostllm.scheduler import Batching, Scheduler, Sequential
 
 BASE = "base"
 
 
 def make_server(
-    scheduler: Sequential, models: Sequence[str], api_key: str | None, host: str, port: int
+    scheduler: Scheduler, models: Sequence[str], api_key: str | None, host: str, port: int
 ) -> ThreadingHTTPServer:
     """A server answering on host:port; with `api_key`, every route but /health wants it as a
     bearer token."""
@@ -108,13 +108,21 @@ def main() -> None:
     parser.add_argument("--adapter", action="append", default=[], help="name=repo-or-path")
     parser.add_argument("--host", default=config.SERVE_HOST)
     parser.add_argument("--port", type=int, default=config.SERVE_PORT)
+    parser.add_argument(
+        "--scheduler", choices=["sequential", "batching"], default=config.SERVE_SCHEDULER
+    )
     args = parser.parse_args()
     engine = load(args.base_model, parse_adapters(args.adapter), base=BASE)
-    scheduler = Sequential(engine.complete)
+    scheduler: Scheduler = (
+        Batching(engine.complete_batch, config.SERVE_MAX_BATCH, config.SERVE_BATCH_WINDOW_SECONDS)
+        if args.scheduler == "batching"
+        else Sequential(engine.complete)
+    )
     server = make_server(
         scheduler, engine.models(), os.environ.get(config.SERVE_API_KEY_ENV), args.host, args.port
     )
-    print(f"serving {', '.join(engine.models())} on {args.host}:{args.port}", flush=True)
+    hosted = ", ".join(engine.models())
+    print(f"serving {hosted} on {args.host}:{args.port}, {args.scheduler}", flush=True)
     try:
         server.serve_forever()
     finally:
