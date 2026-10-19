@@ -1,5 +1,6 @@
-"""What a token served by hostllm costs: the GPU's hourly rate over the time the engine spends on
-it, one request at a time. Standard library only, so a consumer prices a call without torch."""
+"""What a served token costs: the GPU's hourly rate over the time the engine spends on it, for
+hostllm one request at a time and for vLLM at its measured rate. Standard library only, so a
+consumer prices a call without torch."""
 
 from __future__ import annotations
 
@@ -27,4 +28,9 @@ SERVED = token_price(
     config.DEPLOY_GPU_USD_PER_HOUR,
     config.PRICE_PREFILL_MS / config.PRICE_PREFILL_TOKENS,
     config.PRICE_STEP_MS,
+)
+VLLM_SERVED = token_price(
+    config.DEPLOY_GPU_USD_PER_HOUR,
+    config.PRICE_PREFILL_MS / config.PRICE_PREFILL_TOKENS,  # vLLM's own prefill is faster
+    1000 / config.PRICE_VLLM_TOKENS_PER_SECOND,
 )
