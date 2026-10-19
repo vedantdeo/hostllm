@@ -53,3 +53,5 @@ PROFILE_TIMEOUT_SECONDS = 600
 PRICE_PREFILL_MS = 169.6  # one adapter, batch 1, PRICE_PREFILL_TOKENS fed
 PRICE_PREFILL_TOKENS = 574
 PRICE_STEP_MS = 117.3  # one adapter, batch 1
+# vLLM's, from the 2026-10-13 bench: figures answered at 60.0 tok/s with four requests in flight
+PRICE_VLLM_TOKENS_PER_SECOND = 60.0

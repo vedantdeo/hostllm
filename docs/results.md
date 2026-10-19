@@ -145,3 +145,17 @@ Modal's logs (`modal app logs hostllm --search "batch of"`).
 built on what is served now. Where to start afterwards, cheapest first: a longer batch window (a
 setting); setting the adapter once for a batch whose rows share it (~2× a step); merged adapter
 weights (~2× again).
+
+## 2026-10-19: what a served token costs, per engine
+
+`hostllm.pricing` prices a token as the L4's $0.80 an hour over the engine time it takes. No new
+run: both rates come from the measurements above.
+
+| | prompt, $/M | answer, $/M | from |
+|---|---|---|---|
+| `SERVED`, hostllm | 0.066 | 26.07 | the step profile, one request at a time (169.6 ms per 574 prompt tokens, 117.3 ms a step) |
+| `VLLM_SERVED`, vLLM | 0.066 | 3.70 | the v1-vs-vLLM bench: figures at 60.0 tok/s with four in flight, the capstone's `ANALYST_WORKERS` |
+
+vLLM's prefill was not measured apart from its decode, so its prompt rate is ours, an upper bound.
+Both rates assume a busy GPU: the seconds a container idles between calls, and its cold start, are
+billed by Modal and in neither.
